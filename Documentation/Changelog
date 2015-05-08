@@ -1,6 +1,21 @@
 
 CHANGELOG
 
+* 2015/05/08:
+
+    - Implemented 'ignore', 'check' and 'follow' for links
+      allowing recursive link crawling.
+
+    - Print all http status codes > 400 instead of just 404.
+
+    - Follow redirects.
+      May add an option later to turn them off.
+
+    - Check the headers content type when crawling
+      to avoid doing get requests when possible.
+
+    - Ignore fragments.
+
 * 2015/05/06:
 
     - First version.
