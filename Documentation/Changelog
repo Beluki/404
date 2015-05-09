@@ -1,6 +1,21 @@
 
 CHANGELOG
 
+* 2015/05/09:
+
+    - Make a single, lazy get request instead of head/get.
+      This is a major performance improvement.
+
+    - Also look for <img src="..."> when crawling.
+
+    - Added links and time statistics and an option to suppress them (--quiet).
+
+    - Added an option to disable redirects (--no-redirects).
+
+    - Bugfix: add the root url to the link cache too.
+
+    - Bugfix: check that the number of threads is positive.
+
 * 2015/05/08:
 
     - Implemented 'ignore', 'check' and 'follow' for links

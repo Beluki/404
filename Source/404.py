@@ -13,6 +13,7 @@ import sys
 import time
 import urllib
 
+from contextlib import closing
 from queue import Queue
 from threading import Thread
 
@@ -95,12 +96,8 @@ class ThreadPool(object):
         self.pending_tasks += 1
         self.todo.put(task)
 
-
-    def start(self, tasks):
+    def start(self):
         """ Start computing tasks. """
-        for task in tasks:
-            self.add_task(task)
-
         for x in range(self.threads):
             Worker(self.todo, self.done)
 
@@ -131,10 +128,11 @@ class LinkTask(object):
     A task that checks one link and optionally follows
     it to gather sublinks in the HTML body.
     """
-    def __init__(self, link, get_links, timeout):
+    def __init__(self, link, get_links, timeout, allow_redirects):
         self.link = link
         self.get_links = get_links
         self.timeout = timeout
+        self.allow_redirects = allow_redirects
 
         # will contain the links found in the url body if
         # it happens to be HTML and follow = True
@@ -149,34 +147,41 @@ class LinkTask(object):
 
     def run(self):
         try:
-            head_response = requests.head(self.link, timeout = self.timeout, allow_redirects = True)
-            self.status = head_response.status_code
+            with closing(requests.get(self.link, timeout = self.timeout,
+                allow_redirects = self.allow_redirects, stream = True)) as response:
 
-            # when not gathering links, we already have all the information needed
-            # which is just the status code:
-            if not self.get_links:
-                return
+                self.status = response.status_code
 
-            # 1xx: Informational
-            # 2xx: Success
-            # 3xx: Redirection
-            # 4xx: Client Error
-            # 5xx: Server Error
-            if self.status >= 400:
-                return
+                # when not gathering links, we ave all the information needed
+                # which is just the status code:
+                if not self.get_links:
+                    return
 
-            # only html/xml are eligible to follow for further links:
-            content_type = head_response.headers.get('content-type', '').strip()
-            if not content_type.startswith(('text/html', 'application/xhtml+xml')):
-                return
+                # 1xx: Informational
+                # 2xx: Success
+                # 3xx: Redirection
+                # 4xx: Client Error
+                # 5xx: Server Error
+                if self.status >= 400:
+                    return
 
-            # do a GET and parse further links:
-            get_response = requests.get(self.link, timeout = self.timeout, allow_redirects = True)
-            soup = BeautifulSoup(get_response.content, from_encoding = get_response.encoding)
+                # only html/xml are eligible to follow for further links:
+                content_type = response.headers.get('content-type', '').strip()
+                if not content_type.startswith(('text/html', 'application/xhtml+xml')):
+                    return
 
-            for a in soup.find_all('a', href = True):
-                absolute_link = urllib.parse.urljoin(self.link, a['href'])
-                self.links.append(absolute_link)
+                # parse further links:
+                soup = BeautifulSoup(response.content, from_encoding = response.encoding)
+
+                # <a href=...>
+                for tag in soup.find_all('a', href = True):
+                    absolute_link = urllib.parse.urljoin(self.link, tag['href'])
+                    self.links.append(absolute_link)
+
+                # <img src=...>
+                for tag in soup.find_all('img'):
+                    absolute_link = urllib.parse.urljoin(self.link, tag['src'])
+                    self.links.append(absolute_link)
 
         except:
             self.exception = sys.exc_info()
@@ -216,7 +221,7 @@ def make_parser():
     parser = ArgumentParser(
         description = __doc__,
         formatter_class = RawDescriptionHelpFormatter,
-        epilog = 'example: 404.py http://beluki.github.io --skip-external --threads 3',
+        epilog = 'example: 404.py http://beluki.github.io --internal follow --threads 5',
         usage  = '404.py url [option [options ...]]',
     )
 
@@ -240,8 +245,16 @@ def make_parser():
         choices = ['dos', 'mac', 'unix', 'system'],
         default = 'system')
 
+    parser.add_argument('--no-redirects',
+        help = 'do not follow redirects, just return the status code',
+        action = 'store_true')
+
     parser.add_argument('--print-all',
         help = 'print all status codes and urls instead of only 404s',
+        action = 'store_true')
+
+    parser.add_argument('--quiet',
+        help = 'do not print statistics to stderr after crawling',
         action = 'store_true')
 
     parser.add_argument('--threads',
@@ -259,23 +272,28 @@ def make_parser():
 
 # Main program:
 
-def run(url, internal, external, newline, print_all, threads, timeout):
+def run(url, allow_redirects, internal, external, newline, print_all, quiet, threads, timeout):
     """
     Print all the links in url that return 404 to stdout.
     """
     status = 0
-    pool = ThreadPool(threads)
 
-    # start at the root:
-    tasks = []
-    tasks.append(LinkTask(url, True, timeout))
-    pool.start(tasks)
+    # create the pool and a task to start at the root:
+    pool = ThreadPool(threads)
+    pool.add_task(LinkTask(url, True, timeout, allow_redirects))
+    pool.start()
 
     # link cache to avoid following repeating links:
-    link_cache = set()
+    link_cache = set([url])
 
     # url domain:
     netloc = urllib.parse.urlparse(url).netloc
+
+    # stats:
+    st_total_links = 1
+    st_internal = 1
+    st_external = 0
+    st_start_time = time.clock()
 
     # start checking links:
     for task in pool.poll_completed_tasks():
@@ -311,19 +329,28 @@ def run(url, internal, external, newline, print_all, threads, timeout):
                         continue
 
                     is_internal = (parsed.netloc == netloc)
-                    is_external = (parsed.netloc != netloc)
+                    is_external = not(is_internal)
 
                     if is_external and external == 'ignore':
                         continue
 
                     # either follow or just check:
                     if is_internal:
+                        st_internal += 1
                         get_links = (internal == 'follow')
                     else:
+                        st_external += 1
                         get_links = (external == 'follow')
 
-                    link_task = LinkTask(link, get_links, timeout)
+                    link_task = LinkTask(link, get_links, timeout, allow_redirects)
                     pool.add_task(link_task)
+                    st_total_links += 1
+
+    if not quiet:
+        st_end_time = time.clock() - st_start_time
+
+        print('Checked {} total links in {:.3} seconds.'.format(st_total_links, st_end_time), file = sys.stderr)
+        print('{} internal, {} external.'.format(st_internal, st_external), file = sys.stderr)
 
     sys.exit(status)
 
@@ -338,8 +365,15 @@ def main():
     external = options.external
     internal = options.internal
     newline = BYTES_NEWLINES[options.newline]
+    no_redirects = options.no_redirects
     print_all = options.print_all
+    quiet = options.quiet
     threads = options.threads
+
+    # validate threads number:
+    if threads < 1:
+        errln('the number of threads must be positive.')
+        sys.exit(1)
 
     # 0 means no timeout:
     if options.timeout > 0:
@@ -347,7 +381,9 @@ def main():
     else:
         timeout = None
 
-    run(url, internal, external, newline, print_all, threads, timeout)
+    allow_redirects = not(no_redirects)
+
+    run(url, allow_redirects, internal, external, newline, print_all, quiet, threads, timeout)
 
 
 if __name__ == '__main__':
