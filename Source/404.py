@@ -250,7 +250,7 @@ def make_parser():
         action = 'store_true')
 
     parser.add_argument('--print-all',
-        help = 'print all status codes and urls instead of only 404s',
+        help = 'print all status codes and urls instead of only errors',
         action = 'store_true')
 
     parser.add_argument('--quiet',
