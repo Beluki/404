@@ -125,8 +125,8 @@ class ThreadPool(object):
 
 class LinkTask(object):
     """
-    A task that checks one link and optionally follows
-    it to gather sublinks in the HTML body.
+    A task that checks one link status and optionally parses
+    the HTML to get links in the body.
     """
     def __init__(self, link, get_links, timeout, allow_redirects):
         self.link = link
@@ -173,12 +173,12 @@ class LinkTask(object):
                 # parse further links:
                 soup = BeautifulSoup(response.content, from_encoding = response.encoding)
 
-                # <a href=...>
+                # <a href="...">
                 for tag in soup.find_all('a', href = True):
                     absolute_link = urllib.parse.urljoin(self.link, tag['href'])
                     self.links.append(absolute_link)
 
-                # <img src=...>
+                # <img src="...">
                 for tag in soup.find_all('img'):
                     absolute_link = urllib.parse.urljoin(self.link, tag['src'])
                     self.links.append(absolute_link)
@@ -274,7 +274,7 @@ def make_parser():
 
 def run(url, allow_redirects, internal, external, newline, print_all, quiet, threads, timeout):
     """
-    Print all the links in url that return 404 to stdout.
+    Setup a threadpool and start checking links.
     """
     status = 0
 
@@ -349,8 +349,11 @@ def run(url, allow_redirects, internal, external, newline, print_all, quiet, thr
     if not quiet:
         st_end_time = time.clock() - st_start_time
 
-        print('Checked {} total links in {:.3} seconds.'.format(st_total_links, st_end_time), file = sys.stderr)
-        print('{} internal, {} external.'.format(st_internal, st_external), file = sys.stderr)
+        print('Checked {} total links in {:.3} seconds.'.format(st_total_links, st_end_time),
+            file = sys.stderr)
+
+        print('{} internal, {} external.'.format(st_internal, st_external),
+            file = sys.stderr)
 
     sys.exit(status)
 
@@ -382,7 +385,6 @@ def main():
         timeout = None
 
     allow_redirects = not(no_redirects)
-
     run(url, allow_redirects, internal, external, newline, print_all, quiet, threads, timeout)
 
 
