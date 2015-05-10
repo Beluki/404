@@ -1,6 +1,13 @@
 
 CHANGELOG
 
+* 2015/05/10:
+
+    - Avoid parsing the entire HTML and look only for link tags.
+      This should make 404 faster and use less memory.
+
+    - Show the number of errors in the final stats.
+
 * 2015/05/09:
 
     - Make a single, lazy get request instead of head/get.

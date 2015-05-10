@@ -37,7 +37,7 @@ def errln(line):
 try:
     import requests
 
-    from bs4 import BeautifulSoup
+    from bs4 import BeautifulSoup, SoupStrainer
     from requests import Timeout
 
 except ImportError:
@@ -123,19 +123,22 @@ class ThreadPool(object):
 
 # Tasks:
 
+# A BeautifulSoup strainer that only cares about links/images:
+link_strainer = SoupStrainer(lambda name, attrs: name == 'a' or name == 'img')
+
+
 class LinkTask(object):
     """
-    A task that checks one link status and optionally parses
+    A task that checks one link and optionally parses
     the HTML to get links in the body.
     """
-    def __init__(self, link, get_links, timeout, allow_redirects):
+    def __init__(self, link, parse_links, timeout, allow_redirects):
         self.link = link
-        self.get_links = get_links
+        self.parse_links = parse_links
         self.timeout = timeout
         self.allow_redirects = allow_redirects
 
-        # will contain the links found in the url body if
-        # it happens to be HTML and follow = True
+        # will contain the links found in the url body when HTML and parse_links = True:
         self.links = []
 
         # will hold the status code and the response headers after executing run():
@@ -147,31 +150,28 @@ class LinkTask(object):
 
     def run(self):
         try:
-            with closing(requests.get(self.link, timeout = self.timeout,
-                allow_redirects = self.allow_redirects, stream = True)) as response:
+            with closing(requests.get(self.link,
+                                      timeout = self.timeout,
+                                      allow_redirects = self.allow_redirects,
+                                      stream = True)) as response:
 
                 self.status = response.status_code
 
-                # when not gathering links, we ave all the information needed
-                # which is just the status code:
-                if not self.get_links:
+                # when not looking for links, we have all the information needed:
+                if not self.parse_links:
                     return
 
-                # 1xx: Informational
-                # 2xx: Success
-                # 3xx: Redirection
-                # 4xx: Client Error
-                # 5xx: Server Error
-                if self.status >= 400:
+                # when the status is a client/server error, don't look for links either:
+                if 400 <= self.status < 600:
                     return
 
-                # only html/xml are eligible to follow for further links:
+                # when not html/xml, no links:
                 content_type = response.headers.get('content-type', '').strip()
                 if not content_type.startswith(('text/html', 'application/xhtml+xml')):
                     return
 
-                # parse further links:
-                soup = BeautifulSoup(response.content, from_encoding = response.encoding)
+                # parse:
+                soup = BeautifulSoup(response.content, parse_only = link_strainer, from_encoding = response.encoding)
 
                 # <a href="...">
                 for tag in soup.find_all('a', href = True):
@@ -179,7 +179,7 @@ class LinkTask(object):
                     self.links.append(absolute_link)
 
                 # <img src="...">
-                for tag in soup.find_all('img'):
+                for tag in soup.find_all('img', src = True):
                     absolute_link = urllib.parse.urljoin(self.link, tag['src'])
                     self.links.append(absolute_link)
 
@@ -293,6 +293,8 @@ def run(url, allow_redirects, internal, external, newline, print_all, quiet, thr
     st_total_links = 1
     st_internal = 1
     st_external = 0
+    st_error_network = 0
+    st_error_link = 0
     st_start_time = time.clock()
 
     # start checking links:
@@ -310,10 +312,17 @@ def run(url, allow_redirects, internal, external, newline, print_all, quiet, thr
             else:
                 errln('{} - {}.'.format(task.link, exc_obj))
 
+            st_error_network += 1
+
         else:
-            if print_all or (task.status >= 400):
+            client_or_server_error = (400 <= task.status < 600)
+
+            if print_all or client_or_server_error:
                 output = utf8_bytes('{}: {}'.format(task.status, task.link))
                 binary_stdout_writeline(output, newline)
+
+            if client_or_server_error:
+                st_error_link += 1
 
             for link in task.links:
 
@@ -349,11 +358,9 @@ def run(url, allow_redirects, internal, external, newline, print_all, quiet, thr
     if not quiet:
         st_end_time = time.clock() - st_start_time
 
-        print('Checked {} total links in {:.3} seconds.'.format(st_total_links, st_end_time),
-            file = sys.stderr)
-
-        print('{} internal, {} external.'.format(st_internal, st_external),
-            file = sys.stderr)
+        print('Checked {} total links in {:.3} seconds.'.format(st_total_links, st_end_time), file = sys.stderr)
+        print('{} internal, {} external.'.format(st_internal, st_external), file = sys.stderr)
+        print('{} network errors, {} link errors.'.format(st_error_network, st_error_link), file = sys.stderr)
 
     sys.exit(status)
 
