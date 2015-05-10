@@ -291,8 +291,8 @@ def run(url, allow_redirects, internal, external, newline, print_all, quiet, thr
 
     # stats:
     st_total_links = 1
-    st_internal = 1
-    st_external = 0
+    st_total_internal = 1
+    st_total_external = 0
     st_error_network = 0
     st_error_link = 0
     st_start_time = time.clock()
@@ -345,10 +345,10 @@ def run(url, allow_redirects, internal, external, newline, print_all, quiet, thr
 
                     # either follow or just check:
                     if is_internal:
-                        st_internal += 1
+                        st_total_internal += 1
                         get_links = (internal == 'follow')
                     else:
-                        st_external += 1
+                        st_total_external += 1
                         get_links = (external == 'follow')
 
                     link_task = LinkTask(link, get_links, timeout, allow_redirects)
@@ -359,7 +359,7 @@ def run(url, allow_redirects, internal, external, newline, print_all, quiet, thr
         st_end_time = time.clock() - st_start_time
 
         print('Checked {} total links in {:.3} seconds.'.format(st_total_links, st_end_time), file = sys.stderr)
-        print('{} internal, {} external.'.format(st_internal, st_external), file = sys.stderr)
+        print('{} internal, {} external.'.format(st_total_internal, st_total_external), file = sys.stderr)
         print('{} network errors, {} link errors.'.format(st_error_network, st_error_link), file = sys.stderr)
 
     sys.exit(status)
