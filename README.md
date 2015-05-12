@@ -58,12 +58,12 @@ Other than that, 404 is a single Python script that you can put in your PATH.
 
 404 has some options that can be used to change the behavior:
 
-*  `--external {check,ignore,follow}` toggles behavior for external (different
+*  `--external [check, ignore, follow]` toggles behavior for external (different
    domain) links. The default is to check them. Be careful! 'follow' may try
    to recursively crawl the entire internet and should only be used on an
    intranet.
 
-* ` --internal {check,ignore,follow}` like above, but for internal links.
+* ` --internal [check, ignore, follow]` like above, but for internal links.
   The default is also 'check'.
 
 * `--newline [dos, mac, unix, system]` changes the newline format.
