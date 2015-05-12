@@ -1,6 +1,10 @@
 
 CHANGELOG
 
+* 2015/05/12:
+
+    - Allow ignoring internal links.
+
 * 2015/05/10:
 
     - Avoid parsing the entire HTML and look only for link tags.

@@ -236,8 +236,8 @@ def make_parser():
         default = 'check')
 
     parser.add_argument('--internal',
-        help = 'whether to check or follow internal links (default: check)',
-        choices = ['check', 'follow'],
+        help = 'whether to check, ignore or follow internal links (default: check)',
+        choices = ['check', 'ignore', 'follow'],
         default = 'check')
 
     parser.add_argument('--newline',
@@ -305,8 +305,7 @@ def run(url, allow_redirects, internal, external, newline, print_all, quiet, thr
             status = 1
             exc_type, exc_obj, exc_trace = task.exception
 
-            # provide a concise error message for timeouts (common)
-            # otherwise, use the exception information:
+            # provide a concise error message for timeouts (common):
             if isinstance(exc_obj, Timeout):
                 errln('{} - timeout.'.format(task.link))
             else:
@@ -317,7 +316,7 @@ def run(url, allow_redirects, internal, external, newline, print_all, quiet, thr
         else:
             client_or_server_error = (400 <= task.status < 600)
 
-            if print_all or client_or_server_error:
+            if client_or_server_error or print_all:
                 output = utf8_bytes('{}: {}'.format(task.status, task.link))
                 binary_stdout_writeline(output, newline)
 
@@ -337,17 +336,18 @@ def run(url, allow_redirects, internal, external, newline, print_all, quiet, thr
                     if not parsed.scheme in ('http', 'https'):
                         continue
 
-                    is_internal = (parsed.netloc == netloc)
-                    is_external = not(is_internal)
+                    # internal or external link?
+                    if parsed.netloc == netloc:
+                        if internal == 'ignore':
+                            continue
 
-                    if is_external and external == 'ignore':
-                        continue
-
-                    # either follow or just check:
-                    if is_internal:
                         st_total_internal += 1
                         get_links = (internal == 'follow')
+
                     else:
+                        if external == 'ignore':
+                            continue
+
                         st_total_external += 1
                         get_links = (external == 'follow')
 
