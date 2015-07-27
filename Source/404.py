@@ -12,6 +12,7 @@ import queue
 import sys
 import time
 import urllib
+import warnings
 
 from contextlib import closing
 from queue import Queue
@@ -293,7 +294,7 @@ def run(url, allow_redirects, internal, external, newline, print_all, quiet, thr
     st_total_links = 1
     st_total_internal = 1
     st_total_external = 0
-    st_error_network = 0
+    st_error_task = 0
     st_error_link = 0
     st_start_time = time.clock()
 
@@ -311,7 +312,7 @@ def run(url, allow_redirects, internal, external, newline, print_all, quiet, thr
             else:
                 errln('{} - {}.'.format(task.link, exc_obj))
 
-            st_error_network += 1
+            st_error_task += 1
 
         else:
             client_or_server_error = (400 <= task.status < 600)
@@ -360,7 +361,7 @@ def run(url, allow_redirects, internal, external, newline, print_all, quiet, thr
 
         print('Checked {} total links in {:.3} seconds.'.format(st_total_links, st_end_time), file = sys.stderr)
         print('{} internal, {} external.'.format(st_total_internal, st_total_external), file = sys.stderr)
-        print('{} network errors, {} link errors.'.format(st_error_network, st_error_link), file = sys.stderr)
+        print('{} network/parsing errors, {} link errors.'.format(st_error_task, st_error_link), file = sys.stderr)
 
     sys.exit(status)
 
@@ -397,6 +398,10 @@ def main():
 
 if __name__ == '__main__':
     try:
+        # ignore a new warning in BeautifulSoup 4.4.0+
+        # we really want it to guess the best parser available:
+        warnings.filterwarnings('ignore', 'No parser was explicitly specified')
+
         main()
     except KeyboardInterrupt:
         pass

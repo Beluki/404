@@ -28,8 +28,6 @@ has the following features:
 * Tries to be efficient: multithreaded, ignores [fragments][], does not build
   a parse tree for non-link markup.
 
-* Fits in 404 lines. :)
-
 [beautifulsoup4]: http://www.crummy.com/software/BeautifulSoup/
 [fragments]: http://en.wikipedia.org/wiki/Fragment_identifier
 [requests]: http://docs.python-requests.org/en/latest/
