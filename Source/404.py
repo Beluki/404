@@ -12,7 +12,6 @@ import queue
 import sys
 import time
 import urllib
-import warnings
 
 from contextlib import closing
 from queue import Queue
@@ -172,7 +171,7 @@ class LinkTask(object):
                     return
 
                 # parse:
-                soup = BeautifulSoup(response.content, parse_only = link_strainer, from_encoding = response.encoding)
+                soup = BeautifulSoup(response.content, 'html.parser', parse_only = link_strainer, from_encoding = response.encoding)
 
                 # <a href="...">
                 for tag in soup.find_all('a', href = True):
@@ -398,10 +397,6 @@ def main():
 
 if __name__ == '__main__':
     try:
-        # ignore a new warning in BeautifulSoup 4.4.0+
-        # we really want it to guess the best parser available:
-        warnings.filterwarnings('ignore', 'No parser was explicitly specified')
-
         main()
     except KeyboardInterrupt:
         pass

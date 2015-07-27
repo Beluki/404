@@ -28,6 +28,8 @@ has the following features:
 * Tries to be efficient: multithreaded, ignores [fragments][], does not build
   a parse tree for non-link markup.
 
+* Fits in 404 lines. :)
+
 [beautifulsoup4]: http://www.crummy.com/software/BeautifulSoup/
 [fragments]: http://en.wikipedia.org/wiki/Fragment_identifier
 [requests]: http://docs.python-requests.org/en/latest/
@@ -39,7 +41,7 @@ $ 404.py http://beluki.github.io --threads 20 --internal follow
 404: http://cdimage.debian.org/debian-cd/7.8.0/i386/iso-cd/
 Checked 144 total links in 6.54 seconds.
 46 internal, 98 external.
-0 network errors, 1 link errors.
+0 network/parsing errors, 1 link errors.
 ```
 
 (please, be polite and don't spawn many concurrent connections to the
